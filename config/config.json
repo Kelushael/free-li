@@ -1,0 +1,22 @@
+{
+  "version": "0.1.0",
+  "model": {
+    "path": "C:\\Users\\Axcitement\\models\\dolphin-2.9-llama3-8b-Q4_K_M.gguf",
+    "context_length": 4096,
+    "threads": 8,
+    "gpu_layers": 0
+  },
+  "api": {
+    "host": "0.0.0.0",
+    "port": 8125
+  },
+  "remote": {
+    "enabled": true,
+    "url": "http://187.77.208.28:8125"
+  },
+  "system_prompt": "You are Freeli, sovereign AI on Axis Mundi.",
+  "inference": {
+    "temperature": 0.7,
+    "max_tokens": 2048
+  }
+}
