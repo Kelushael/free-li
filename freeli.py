@@ -659,7 +659,7 @@ class Freeli:
         mode = f"Remote: {remote}" if use_remote else f"Local: {Path(model).name if model else 'none'}"
         
         print(f"FREELI - Sovereign AI Agent\n{mode}\nTools: code, files, edit, grep, web, sql, ask, artifact, screenshot")
-        print("Commands: /addcmd /addtool /adjustconfig /addorigin /quit\n")
+        print("Commands: /spawn /addcmd /addtool /adjustconfig /addorigin /addmem /quit\n")
         
         while True:
             try:
@@ -689,6 +689,71 @@ class Freeli:
                         with open(mem_path, mode, encoding="utf-8") as f:
                             f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] {mem}\n")
                         print(f"[OK] Memory saved to {mem_path}")
+                    continue
+
+                if user == "/spawn":
+                    print("\n[FREELI SPAWN] Provision Remote Inference Server")
+                    host = input("SSH Host (e.g. root@1.2.3.4) > ").strip()
+                    if not host: continue
+                    
+                    print(f"[freeli] Provisioning {host}...")
+                    
+                    # Create provision script
+                    script_content = """#!/bin/bash
+                    set -e
+                    echo "--- Updating System ---"
+                    apt-get update -qq && apt-get install -y -qq build-essential git cmake wget screen python3-pip
+                    
+                    echo "--- Setting up Llama.cpp ---"
+                    if [ ! -d "llama.cpp" ]; then
+                        git clone https://github.com/ggerganov/llama.cpp
+                        cd llama.cpp
+                        make -j$(nproc)
+                        cd ..
+                    fi
+                    
+                    echo "--- Downloading Model (Phi-2) ---"
+                    mkdir -p models
+                    if [ ! -f "models/phi-2.Q4_K_M.gguf" ]; then
+                        wget -q --show-progress -O models/phi-2.Q4_K_M.gguf https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf
+                    fi
+                    
+                    echo "--- Starting Server ---"
+                    # Kill existing
+                    pkill -f llama-server || true
+                    
+                    # Run in screen
+                    screen -dmS freeli ./llama.cpp/llama-server -m models/phi-2.Q4_K_M.gguf -c 2048 --host 0.0.0.0 --port 8125
+                    
+                    echo "SUCCESS: Server running on port 8125"
+                    """
+                    
+                    try:
+                        # Write local temp script
+                        prov_path = WORKSPACE / "provision.sh"
+                        prov_path.write_text(script_content, encoding='utf-8')
+                        
+                        # SCP script
+                        tgt = f"{host}:/tmp/provision_freeli.sh"
+                        print(f"• Uploading script to {tgt}...")
+                        subprocess.run(["scp", str(prov_path), tgt], check=True)
+                        
+                        # Execute SSH
+                        print(f"• Executing on {host}...")
+                        subprocess.run(["ssh", host, "chmod +x /tmp/provision_freeli.sh && /tmp/provision_freeli.sh"], check=True)
+                        
+                        ip = host.split("@")[1] if "@" in host else host
+                        new_url = f"http://{ip}:8125"
+                        print(f"\n[OK] Remote server provisioned at {new_url}")
+                        
+                        if input("Set as current origin? (y/n) > ").lower().startswith("y"):
+                            self.config.data.setdefault("remote", {})["url"] = new_url
+                            self.config.save()
+                            print("[OK] Origin updated")
+                            
+                    except Exception as e:
+                        print(f"[ERROR] Spawn failed: {e}")
+                        print("Ensure you have SSH keys set up and 'scp' available.")
                     continue
 
                 if user == "/adjustconfig":
